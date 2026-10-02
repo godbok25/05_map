@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>노원구 공영주차장 지도</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+:root{
+  --ink:#1b2330; --sub:#5d6675; --line:#e3e6ea; --bg:#ffffff; --wash:#f5f6f8;
+  --offstreet:#1f5fbf;  /* 노외: 주차 표지판의 파랑 */
+  --onstreet:#e2711d;   /* 노상: 도로 위 구획선을 연상시키는 주황 */
+  --panel:360px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:Pretendard,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;color:var(--ink);background:var(--bg);display:flex}
+#panel{width:var(--panel);height:100%;display:flex;flex-direction:column;border-right:1px solid var(--line);background:var(--bg);z-index:2}
+#map{flex:1;height:100%}
+header{padding:22px 20px 14px}
+h1{font-size:21px;line-height:1.25;margin:0 0 4px;font-weight:700;letter-spacing:-.02em}
+.lead{margin:0;color:var(--sub);font-size:13px;line-height:1.5}
+.block{padding:12px 20px;border-top:1px solid var(--line)}
+.block h2{font-size:12px;font-weight:600;color:var(--sub);margin:0 0 8px}
+.types{display:flex;gap:8px}
+.type{flex:1;display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-size:14px;user-select:none;background:var(--bg)}
+.type input{position:absolute;opacity:0;pointer-events:none}
+.type .sw{width:14px;height:14px;border-radius:4px;flex:none}
+.type b{margin-left:auto;font-weight:600;font-variant-numeric:tabular-nums}
+.type:has(input:not(:checked)){opacity:.4}
+.type:has(input:focus-visible){outline:2px solid var(--ink);outline-offset:2px}
+select,input[type=search]{width:100%;font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+#list{flex:1;overflow:auto;margin:0;padding:0;list-style:none;border-top:1px solid var(--line)}
+#list li{padding:11px 20px;border-bottom:1px solid var(--line);cursor:pointer;display:grid;grid-template-columns:12px 1fr auto;gap:2px 10px;align-items:baseline}
+#list li:hover,#list li:focus-visible{background:var(--wash);outline:none}
+#list .dot{width:10px;height:10px;border-radius:3px;align-self:center;grid-row:span 2}
+#list .nm{font-size:14px;font-weight:600}
+#list .fee{font-size:13px;font-variant-numeric:tabular-nums;color:var(--ink)}
+#list .meta{grid-column:2 / 4;font-size:12px;color:var(--sub)}
+#list li.nogeo .nm::after{content:" · 위치 미확인";font-weight:400;color:#b03a2e;font-size:12px}
+footer{padding:10px 20px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--sub);display:flex;align-items:center;gap:10px}
+#status{flex:1;line-height:1.4}
+button{font:inherit;font-size:13px;padding:7px 12px;border-radius:8px;border:1px solid var(--ink);background:var(--ink);color:#fff;cursor:pointer}
+button:disabled{opacity:.35;cursor:default}
+
+/* 핀 */
+.pin{width:26px;height:32px}
+.pin svg{display:block;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35))}
+.pin.approx svg{opacity:.75}
+
+/* 팝업 */
+.leaflet-popup-content-wrapper{border-radius:10px}
+.leaflet-popup-content{margin:14px 16px;font-family:inherit;font-size:13px;line-height:1.45;color:var(--ink);min-width:240px}
+.pp h3{margin:0 0 2px;font-size:15px}
+.pp .addr{color:var(--sub);margin-bottom:8px}
+.pp .tag{display:inline-block;color:#fff;border-radius:4px;padding:0 6px;font-size:12px;margin-right:6px}
+.pp table{width:100%;border-collapse:collapse;margin:4px 0 8px;font-variant-numeric:tabular-nums}
+.pp th{text-align:left;font-weight:500;color:var(--sub);padding:3px 8px 3px 0;white-space:nowrap;width:64px}
+.pp td{padding:3px 0;border-top:1px solid var(--line)}
+.pp tr:first-child td{border-top:0}
+.pp h4{margin:8px 0 0;font-size:12px;color:var(--sub);font-weight:600}
+.pp .src{font-size:11px;color:var(--sub)}
+
+@media (max-width:760px){
+  body{flex-direction:column-reverse}
+  #panel{width:100%;height:46%;border-right:0;border-top:1px solid var(--line)}
+  header{padding:12px 16px 8px} h1{font-size:17px} .lead{display:none}
+  .block{padding:8px 16px} #list li{padding:9px 16px}
+  :root{padding-bottom:env(safe-area-inset-bottom,0px)}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<aside id="panel">
+  <header>
+    <h1>노원구 공영주차장</h1>
+    <p class="lead">핀이나 목록을 누르면 운영시간과 요금이 표시됩니다. 서울시 공영주차장 안내 정보 기준.</p>
+  </header>
+  <div class="block">
+    <h2>주차장 구분</h2>
+    <div class="types">
+      <label class="type"><input type="checkbox" value="노외" checked><span class="sw" style="background:var(--offstreet)"></span>노외<b id="n-off">0</b></label>
+      <label class="type"><input type="checkbox" value="노상" checked><span class="sw" style="background:var(--onstreet)"></span>노상<b id="n-on">0</b></label>
+    </div>
+  </div>
+  <div class="block">
+    <h2>지도 스타일</h2>
+    <select id="style" aria-label="지도 스타일"></select>
+  </div>
+  <div class="block">
+    <input id="q" type="search" placeholder="주차장명·동 이름 검색" aria-label="주차장 검색">
+  </div>
+  <ul id="list"></ul>
+  <footer><span id="status">불러오는 중</span><button id="dl" disabled>좌표 포함 CSV 저장</button></footer>
+</aside>
+<div id="map" role="region" aria-label="노원구 공영주차장 지도"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script>
+/* ---------- 1. 데이터: 정제된 노원구 공영주차장 (nowon_parking.csv와 동일) ---------- */
+const DATA = [{"주차장코드": 1453979, "주차장명": "(구)북부지법주변(구)", "주소": "서울특별시 노원구 공릉동 629-1", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "09:00", "공휴일_종료": "18:00", "토요일_유무료": "무료", "공휴일_유무료": "무료", "기본요금": 250, "기본시간_분": 5, "추가요금": 0, "추가시간_분": 0, "일최대요금": 33000, "월정기권": 150000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 1584204, "주차장명": "구청사주변(구)", "주소": "서울특별시 노원구 상계동 739-2", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "20:00", "주말_시작": "00:00", "주말_종료": "00:00", "공휴일_시작": "00:00", "공휴일_종료": "00:00", "토요일_유무료": "유료", "공휴일_유무료": "유료", "기본요금": 250, "기본시간_분": 5, "추가요금": 250, "추가시간_분": 5, "일최대요금": 16500, "월정기권": 150000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 1453742, "주차장명": "당고개위 공영주차장(시)", "주소": "서울특별시 노원구 상계동 111-568", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "22:00", "주말_시작": "09:00", "주말_종료": "22:00", "공휴일_시작": "09:00", "공휴일_종료": "22:00", "토요일_유무료": "무료", "공휴일_유무료": "무료", "기본요금": 400, "기본시간_분": 5, "추가요금": 400, "추가시간_분": 5, "일최대요금": 0, "월정기권": 0, "전화번호": "02-1688-1054", "위도": 37.67043, "경도": 127.080529, "좌표출처": "원본 데이터"}, {"주차장코드": 1453816, "주차장명": "수락산디자인서울거리(구)", "주소": "서울특별시 노원구 상계동 996-2", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "09:00", "공휴일_종료": "18:00", "토요일_유무료": "무료", "공휴일_유무료": "무료", "기본요금": 150, "기본시간_분": 5, "추가요금": 0, "추가시간_분": 0, "일최대요금": 19800, "월정기권": 100000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 1454316, "주차장명": "신한증권옆(구)", "주소": "서울특별시 노원구 중계동 366-12", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "09:00", "공휴일_종료": "18:00", "토요일_유무료": "무료", "공휴일_유무료": "무료", "기본요금": 250, "기본시간_분": 5, "추가요금": 0, "추가시간_분": 0, "일최대요금": 33000, "월정기권": 150000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 1454052, "주차장명": "유경백화점뒤(구)", "주소": "서울특별시 노원구 중계동 364-16", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "09:00", "공휴일_종료": "18:00", "토요일_유무료": "무료", "공휴일_유무료": "무료", "기본요금": 250, "기본시간_분": 5, "추가요금": 0, "추가시간_분": 0, "일최대요금": 33000, "월정기권": 150000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 1570843, "주차장명": "주공11단지상가뒤(구)", "주소": "서울특별시 노원구 상계동 652-4", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "09:00", "공휴일_종료": "18:00", "토요일_유무료": "무료", "공휴일_유무료": "무료", "기본요금": 250, "기본시간_분": 5, "추가요금": 0, "추가시간_분": 0, "일최대요금": 33000, "월정기권": 150000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 3117530, "주차장명": "주공11단지상가뒤(구)", "주소": "서울특별시 노원구 상계동 652-0", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "19:00", "공휴일_시작": "00:00", "공휴일_종료": "00:00", "토요일_유무료": "무료", "공휴일_유무료": "유료", "기본요금": 250, "기본시간_분": 5, "추가요금": 250, "추가시간_분": 5, "일최대요금": "", "월정기권": 150000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 1570020, "주차장명": "주공12단지상가뒤(구)", "주소": "서울특별시 노원구 상계동 647-1", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "09:00", "공휴일_종료": "18:00", "토요일_유무료": "무료", "공휴일_유무료": "무료", "기본요금": 250, "기본시간_분": 5, "추가요금": 0, "추가시간_분": 0, "일최대요금": 33000, "월정기권": 150000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 1570842, "주차장명": "주공3단지상가주변(구)", "주소": "서울특별시 노원구 상계동 736-0", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "09:00", "공휴일_종료": "18:00", "토요일_유무료": "무료", "공휴일_유무료": "무료", "기본요금": 250, "기본시간_분": 5, "추가요금": 0, "추가시간_분": 0, "일최대요금": 33000, "월정기권": 150000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 2882454, "주차장명": "주공3단지상가주변(구)", "주소": "서울특별시 노원구 상계동 735-0", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "19:00", "공휴일_시작": "00:00", "공휴일_종료": "00:00", "토요일_유무료": "무료", "공휴일_유무료": "유료", "기본요금": 250, "기본시간_분": 5, "추가요금": 250, "추가시간_분": 5, "일최대요금": "", "월정기권": "", "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 1454520, "주차장명": "주공5단지옆(구)", "주소": "서울특별시 노원구 중계동 359-16", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "09:00", "공휴일_종료": "18:00", "토요일_유무료": "무료", "공휴일_유무료": "무료", "기본요금": 250, "기본시간_분": 5, "추가요금": 0, "추가시간_분": 0, "일최대요금": 33000, "월정기권": 150000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 1454055, "주차장명": "주공6단지상가주변(구)", "주소": "서울특별시 노원구 상계동 723-2", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "09:00", "공휴일_종료": "18:00", "토요일_유무료": "무료", "공휴일_유무료": "무료", "기본요금": 250, "기본시간_분": 5, "추가요금": 0, "추가시간_분": 0, "일최대요금": 33000, "월정기권": 150000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 1453857, "주차장명": "주공7단지옆(구)", "주소": "서울특별시 노원구 상계동 693-5", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "09:00", "공휴일_종료": "18:00", "토요일_유무료": "무료", "공휴일_유무료": "무료", "기본요금": 250, "기본시간_분": 5, "추가요금": 0, "추가시간_분": 0, "일최대요금": 33000, "월정기권": 150000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 1454202, "주차장명": "청구건영아파트옆(구)", "주소": "서울특별시 노원구 중계동 360-4", "구분": "노상", "운영구분": "시간제 주차장", "총주차면": 1, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "09:00", "공휴일_종료": "18:00", "토요일_유무료": "무료", "공휴일_유무료": "무료", "기본요금": 250, "기본시간_분": 5, "추가요금": 0, "추가시간_분": 0, "일최대요금": 33000, "월정기권": 150000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 3071313, "주차장명": "가재울 공영주차장(구)", "주소": "서울특별시 노원구 하계동 252-6", "구분": "노외", "운영구분": "시간제 + 거주자 주차장", "총주차면": 121, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "19:00", "공휴일_시작": "09:00", "공휴일_종료": "19:00", "토요일_유무료": "무료", "공휴일_유무료": "무료", "기본요금": 150, "기본시간_분": 5, "추가요금": 150, "추가시간_분": 5, "일최대요금": 11000, "월정기권": 100000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 3012953, "주차장명": "동막골 노외공영주차장(구)", "주소": "서울특별시 노원구 상계동 31-0", "구분": "노외", "운영구분": "시간제 주차장", "총주차면": 35, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "00:00", "주말_종료": "00:00", "공휴일_시작": "00:00", "공휴일_종료": "00:00", "토요일_유무료": "유료", "공휴일_유무료": "유료", "기본요금": 150, "기본시간_분": 5, "추가요금": 150, "추가시간_분": 5, "일최대요금": 8100, "월정기권": 100000, "전화번호": "02-939-7708", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 3031636, "주차장명": "등나무근린공원 공영주차장(구)", "주소": "서울특별시 노원구 중계동 508-1", "구분": "노외", "운영구분": "시간제 주차장", "총주차면": 120, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "00:00", "공휴일_종료": "00:00", "토요일_유무료": "무료", "공휴일_유무료": "유료", "기본요금": 250, "기본시간_분": 5, "추가요금": 250, "추가시간_분": 5, "일최대요금": "", "월정기권": 180000, "전화번호": "029497706", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 3083942, "주차장명": "마들스포츠타운 공영주차장(구)", "주소": "서울특별시 노원구 상계동 770-2", "구분": "노외", "운영구분": "시간제 주차장", "총주차면": 226, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "00:00", "공휴일_종료": "00:00", "토요일_유무료": "무료", "공휴일_유무료": "유료", "기본요금": 150, "기본시간_분": 5, "추가요금": 150, "추가시간_분": 5, "일최대요금": "", "월정기권": 100000, "전화번호": "02-2289-6735", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 3027305, "주차장명": "불암산 공영주차장(구)", "주소": "서울특별시 노원구 중계동 26-0", "구분": "노외", "운영구분": "시간제 주차장", "총주차면": 35, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "00:00", "주말_종료": "00:00", "공휴일_시작": "00:00", "공휴일_종료": "00:00", "토요일_유무료": "유료", "공휴일_유무료": "유료", "기본요금": 150, "기본시간_분": 5, "추가요금": 150, "추가시간_분": 5, "일최대요금": "", "월정기권": 100000, "전화번호": "02-2289-6720", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 2978129, "주차장명": "상계2동 공영주차장(구)", "주소": "서울특별시 노원구 상계동 373-13", "구분": "노외", "운영구분": "시간제 주차장", "총주차면": 94, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "00:00", "공휴일_종료": "00:00", "토요일_유무료": "무료", "공휴일_유무료": "유료", "기본요금": 150, "기본시간_분": 5, "추가요금": 150, "추가시간_분": 5, "일최대요금": 11000, "월정기권": 100000, "전화번호": "02-931-2758", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 3037642, "주차장명": "상계역 서측 주택가 공영주차장(구)", "주소": "서울특별시 노원구 상계동 169-409", "구분": "노외", "운영구분": "시간제 주차장", "총주차면": 19, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "00:00", "주말_종료": "00:00", "공휴일_시작": "00:00", "공휴일_종료": "00:00", "토요일_유무료": "유료", "공휴일_유무료": "유료", "기본요금": 150, "기본시간_분": 5, "추가요금": 150, "추가시간_분": 5, "일최대요금": 8100, "월정기권": "", "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 3152733, "주차장명": "석계역 공영주차장(구)", "주소": "서울특별시 노원구 월계동 60-1", "구분": "노외", "운영구분": "시간제 주차장", "총주차면": 29, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "00:00", "공휴일_종료": "00:00", "토요일_유무료": "무료", "공휴일_유무료": "유료", "기본요금": 260, "기본시간_분": 5, "추가요금": "", "추가시간_분": "", "일최대요금": "", "월정기권": "", "전화번호": "02-942-8882", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 1366903, "주차장명": "석계역 공영주차장(시)", "주소": "서울특별시 노원구 월계동 50-9", "구분": "노외", "운영구분": "시간제 주차장", "총주차면": 70, "유무료": "유료", "평일_시작": "00:00", "평일_종료": "24:00", "주말_시작": "00:00", "주말_종료": "24:00", "공휴일_시작": "00:00", "공휴일_종료": "24:00", "토요일_유무료": "무료", "공휴일_유무료": "무료", "기본요금": 280, "기본시간_분": 5, "추가요금": 280, "추가시간_분": 5, "일최대요금": "", "월정기권": 168000, "전화번호": "", "위도": 37.615292, "경도": 127.062997, "좌표출처": "원본 데이터"}, {"주차장코드": 1577275, "주차장명": "중계4동 임시공영주차장(구)", "주소": "서울특별시 노원구 중계동 606-2", "구분": "노외", "운영구분": "시간제 주차장", "총주차면": 39, "유무료": "유료", "평일_시작": "10:00", "평일_종료": "19:00", "주말_시작": "10:00", "주말_종료": "18:00", "공휴일_시작": "00:00", "공휴일_종료": "00:00", "토요일_유무료": "무료", "공휴일_유무료": "유료", "기본요금": 150, "기본시간_분": 5, "추가요금": 150, "추가시간_분": 5, "일최대요금": 8100, "월정기권": 100000, "전화번호": "", "위도": "", "경도": "", "좌표출처": ""}, {"주차장코드": 3054310, "주차장명": "중계근린공원 공영주차장(구)", "주소": "서울특별시 노원구 중계동 507-0", "구분": "노외", "운영구분": "시간제 주차장", "총주차면": 94, "유무료": "유료", "평일_시작": "09:00", "평일_종료": "19:00", "주말_시작": "09:00", "주말_종료": "18:00", "공휴일_시작": "00:00", "공휴일_종료": "00:00", "토요일_유무료": "무료", "공휴일_유무료": "유료", "기본요금": 250, "기본시간_분": 5, "추가요금": 250, "추가시간_분": 5, "일최대요금": "", "월정기권": 180000, "전화번호": "02-949-7705", "위도": "", "경도": "", "좌표출처": ""}];
+
+/* ---------- 2. 지도 스타일 (모두 OpenStreetMap 데이터 기반 타일) ---------- */
+const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const CARTO = OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const STYLES = {
+  positron:  {name:'심플 라이트 (CARTO Positron)', url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', attr:CARTO, sub:'abcd'},
+  nolabels:  {name:'심플 라이트 · 라벨 없음',       url:'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', attr:CARTO, sub:'abcd'},
+  voyager:   {name:'보이저 (CARTO Voyager)',        url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', attr:CARTO, sub:'abcd'},
+  dark:      {name:'다크 (CARTO Dark Matter)',      url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', attr:CARTO, sub:'abcd'},
+  standard:  {name:'OSM 표준',                     url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr:OSM_ATTR, sub:'abc'},
+  hot:       {name:'OSM 인도주의 (HOT)',            url:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attr:OSM_ATTR+' · Tiles HOT', sub:'abc'},
+  topo:      {name:'지형 (OpenTopoMap)',            url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', attr:OSM_ATTR+' · &copy; OpenTopoMap (CC-BY-SA)', sub:'abc', maxZoom:17}
+};
+
+const map = L.map('map', {zoomControl:true}).setView([37.654, 127.068], 13);
+let base = null;
+const sel = document.getElementById('style');
+for (const [k, s] of Object.entries(STYLES)) sel.add(new Option(s.name, k));
+function setStyle(k){
+  const s = STYLES[k];
+  if (base) map.removeLayer(base);
+  base = L.tileLayer(s.url, {attribution:s.attr, subdomains:s.sub, maxZoom:s.maxZoom || 19}).addTo(map);
+  try { localStorage.setItem('nowon-style', k); } catch(e) {}
+}
+let saved = 'positron';
+try { saved = localStorage.getItem('nowon-style') || 'positron'; } catch(e) {}
+sel.value = STYLES[saved] ? saved : 'positron';
+setStyle(sel.value);
+sel.addEventListener('change', e => setStyle(e.target.value));
+
+/* ---------- 3. 표시용 포맷 ---------- */
+const COLOR = {'노외':'#1f5fbf', '노상':'#e2711d'};
+const won = v => (v === '' || v == null || +v === 0) ? null : (+v).toLocaleString('ko-KR') + '원';
+function hours(a, b){
+  if (!a && !b) return '정보 없음';
+  if (a === '00:00' && b === '24:00') return '24시간';
+  if (a === b) return '정보 없음';
+  return `${a}–${b}`;
+}
+function feeLine(p){
+  const base = won(p.기본요금);
+  if (!base) return '무료';
+  return `${base} / ${p.기본시간_분}분`;
+}
+function perHour(p){
+  if (!+p.기본요금 || !+p.기본시간_분) return null;
+  return won(Math.round(p.기본요금 * 60 / p.기본시간_분));
+}
+function popupHTML(p){
+  const add = won(p.추가요금) ? `${won(p.추가요금)} / ${p.추가시간_분}분` : '—';
+  const rows = (pairs) => pairs.map(([k,v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('');
+  return `<div class="pp">
+    <h3>${p.주차장명}</h3>
+    <div class="addr"><span class="tag" style="background:${COLOR[p.구분]}">${p.구분}</span>${p.주소.replace('서울특별시 ','')}</div>
+    <table>${rows([['운영', p.운영구분], ['주차면', p.총주차면 + '면'], ['전화', p.전화번호 || '—']])}</table>
+    <h4>운영시간</h4>
+    <table>${rows([
+      ['평일', hours(p.평일_시작, p.평일_종료)],
+      ['주말', hours(p.주말_시작, p.주말_종료) + ` · 토요일 ${p.토요일_유무료}`],
+      ['공휴일', hours(p.공휴일_시작, p.공휴일_종료) + ` · ${p.공휴일_유무료}`]])}</table>
+    <h4>요금</h4>
+    <table>${rows([
+      ['기본', feeLine(p) + (perHour(p) ? ` (시간당 ${perHour(p)})` : '')],
+      ['추가', add],
+      ['일 최대', won(p.일최대요금) || '—'],
+      ['월 정기권', won(p.월정기권) || '—']])}</table>
+    <div class="src">좌표: ${p.좌표출처 || '—'}</div>
+  </div>`;
+}
+function pinIcon(p){
+  const c = COLOR[p.구분];
+  const approx = /근사/.test(p.좌표출처 || '');
+  const svg = `<svg width="26" height="32" viewBox="0 0 26 32" aria-hidden="true">
+    <path d="M3 1h20a2 2 0 0 1 2 2v18a2 2 0 0 1-2 2h-6l-4 7-4-7H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z"
+      fill="${c}" stroke="#fff" stroke-width="1.5" ${approx ? 'stroke-dasharray="3 2"' : ''}/>
+    <text x="13" y="17" text-anchor="middle" font-family="Pretendard,Arial,sans-serif" font-size="14" font-weight="700" fill="#fff">P</text></svg>`;
+  return L.divIcon({className:'pin' + (approx ? ' approx' : ''), html:svg, iconSize:[26,32], iconAnchor:[13,31], popupAnchor:[0,-28]});
+}
+
+/* ---------- 4. 마커·목록 ---------- */
+const layer = L.featureGroup().addTo(map);
+const markers = new Map();
+function hasGeo(p){ return p.위도 !== '' && p.위도 != null && !isNaN(+p.위도); }
+
+// 같은 좌표(동 중심 근사 등)에 여러 주차장이 겹치면 클릭이 가능하도록 약 15m 간격으로 원형 배치
+function displayPos(p){
+  const same = DATA.filter(d => hasGeo(d) && +d.위도 === +p.위도 && +d.경도 === +p.경도);
+  if (same.length < 2) return [+p.위도, +p.경도];
+  const i = same.indexOf(p), a = 2 * Math.PI * i / same.length, r = 0.00014;
+  return [+p.위도 + r * Math.sin(a), +p.경도 + r * Math.cos(a) * 1.26];
+}
+function drawMarkers(){
+  layer.clearLayers(); markers.clear();
+  for (const p of DATA){
+    if (!hasGeo(p) || !visible(p)) continue;
+    const m = L.marker(displayPos(p), {icon:pinIcon(p), title:p.주차장명, keyboard:true}).bindPopup(popupHTML(p));
+    m.addTo(layer); markers.set(String(p.주차장코드), m);
+  }
+}
+function visible(p){
+  const types = [...document.querySelectorAll('.type input:checked')].map(i => i.value);
+  const q = document.getElementById('q').value.trim();
+  return types.includes(p.구분) && (!q || (p.주차장명 + p.주소).includes(q));
+}
+function drawList(){
+  const ul = document.getElementById('list'); ul.innerHTML = '';
+  for (const p of DATA.filter(visible)){
+    const li = document.createElement('li'); li.tabIndex = 0;
+    if (!hasGeo(p)) li.className = 'nogeo';
+    const dong = (p.주소.match(/(\S+동)\s/) || [,''])[1];
+    li.innerHTML = `<span class="dot" style="background:${COLOR[p.구분]}"></span>
+      <span class="nm">${p.주차장명}</span><span class="fee">${feeLine(p)}</span>
+      <span class="meta">${dong} · 평일 ${hours(p.평일_시작, p.평일_종료)} · ${p.총주차면}면</span>`;
+    const go = () => { const m = markers.get(String(p.주차장코드)); if (m){ map.setView(m.getLatLng(), 17); m.openPopup(); } };
+    li.addEventListener('click', go);
+    li.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    ul.appendChild(li);
+  }
+  document.getElementById('n-off').textContent = DATA.filter(d => d.구분 === '노외').length;
+  document.getElementById('n-on').textContent  = DATA.filter(d => d.구분 === '노상').length;
+}
+function refresh(fit){
+  drawMarkers(); drawList();
+  if (fit && layer.getLayers().length) map.fitBounds(layer.getBounds(), {padding:[40,40], maxZoom:16});
+}
+document.querySelectorAll('.type input').forEach(i => i.addEventListener('change', () => refresh(true)));
+document.getElementById('q').addEventListener('input', () => refresh(false));
+
+/* ---------- 5. 좌표 확보: (a) 지오코딩된 CSV → (b) 브라우저 캐시 → (c) Nominatim 지오코딩 ---------- */
+const status = t => document.getElementById('status').textContent = t;
+const BBOX = {s:37.600, w:127.035, n:37.700, e:127.125};
+const inNowon = (lat, lng) => lat >= BBOX.s && lat <= BBOX.n && lng >= BBOX.w && lng <= BBOX.e;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const CACHE_KEY = 'nowon-geo-v1';
+let cache = {};
+try { cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); } catch(e) {}
+
+function apply(code, lat, lng, src){
+  const p = DATA.find(d => String(d.주차장코드) === String(code));
+  if (p && !hasGeo(p)){ p.위도 = +(+lat).toFixed(6); p.경도 = +(+lng).toFixed(6); p.좌표출처 = src; }
+}
+async function loadGeocodedCSV(){
+  try {
+    const res = await fetch('nowon_parking_geocoded.csv', {cache:'no-store'});
+    if (!res.ok) return 0;
+    const rows = Papa.parse((await res.text()).replace(/^\uFEFF/, ''), {header:true, skipEmptyLines:true}).data;
+    let n = 0;
+    for (const r of rows) if (r.위도 && r.경도){ apply(r.주차장코드, r.위도, r.경도, r.좌표출처 || '지오코딩'); n++; }
+    return n;
+  } catch(e) { return 0; }   // file:// 로 열었거나 파일이 없으면 다음 단계로
+}
+async function nominatim(q){
+  const u = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=kr&bounded=1'
+    + `&viewbox=${BBOX.w},${BBOX.n},${BBOX.e},${BBOX.s}&q=` + encodeURIComponent(q);
+  const r = await fetch(u, {headers:{'Accept-Language':'ko'}});
+  await sleep(1100);                                    // 이용 정책: 초당 1회 이하
+  const j = await r.json();
+  return (j[0] && inNowon(+j[0].lat, +j[0].lon)) ? [+j[0].lat, +j[0].lon] : null;
+}
+async function geocode(p){
+  const m = p.주소.match(/노원구\s+(\S+동)\s+(\d+)(?:-(\d+))?/);
+  if (!m) return null;
+  const [, dong, main, sub] = m;
+  const lot = (!sub || sub === '0') ? main : `${main}-${sub}`;
+  const tries = [[`서울특별시 노원구 ${dong} ${lot}`, '지오코딩(OSM·지번)'],
+                 [`서울특별시 노원구 ${dong} ${main}`, '지오코딩(OSM·본번)'],
+                 [`${dong}, 노원구, 서울특별시`, '지오코딩(OSM·동 중심, 근사)']];
+  for (const [q, src] of tries){
+    try { const hit = await nominatim(q); if (hit) return [...hit, src]; } catch(e) {}
+  }
+  return null;
+}
+async function init(){
+  refresh(true);
+  const fromCsv = await loadGeocodedCSV();
+  for (const [code, v] of Object.entries(cache)) apply(code, v[0], v[1], v[2]);
+  refresh(true);
+
+  const todo = DATA.filter(p => !hasGeo(p));
+  for (let i = 0; i < todo.length; i++){
+    status(`주소를 좌표로 변환 중 ${i + 1}/${todo.length}`);
+    const hit = await geocode(todo[i]);
+    if (hit){
+      apply(todo[i].주차장코드, ...hit);
+      cache[todo[i].주차장코드] = hit;
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch(e) {}
+      refresh(false);
+    }
+  }
+  refresh(true);
+  const ok = DATA.filter(hasGeo).length;
+  const approx = DATA.filter(p => /근사/.test(p.좌표출처 || '')).length;
+  status(`${ok}/${DATA.length}곳 표시` + (approx ? ` · 근사 위치 ${approx}곳(점선 핀)` : '') + (fromCsv ? ' · CSV 좌표 사용' : ''));
+  document.getElementById('dl').disabled = false;
+}
+
+/* ---------- 6. 좌표가 채워진 CSV 내려받기 ---------- */
+document.getElementById('dl').addEventListener('click', () => {
+  const csv = '\uFEFF' + Papa.unparse(DATA);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  a.download = 'nowon_parking_geocoded.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+init();
+</script>
+</body>
+</html>
