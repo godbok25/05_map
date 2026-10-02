@@ -105,15 +105,17 @@ const DATA = [{"주차장코드": 1453979, "주차장명": "(구)북부지법주
 
 /* ---------- 2. 지도 스타일 (모두 OpenStreetMap 데이터 기반 타일) ---------- */
 const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-const CARTO = OSM_ATTR + ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const OSM = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+// 모두 API 키 없이 쓸 수 있는 OSM 데이터 기반 타일.
+// '심플' 계열은 OSM 표준 타일에 CSS 필터를 씌워 주변 요소의 색을 덜어낸 것.
 const STYLES = {
-  positron:  {name:'심플 라이트 (CARTO Positron)', url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', attr:CARTO, sub:'abcd'},
-  nolabels:  {name:'심플 라이트 · 라벨 없음',       url:'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', attr:CARTO, sub:'abcd'},
-  voyager:   {name:'보이저 (CARTO Voyager)',        url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', attr:CARTO, sub:'abcd'},
-  dark:      {name:'다크 (CARTO Dark Matter)',      url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', attr:CARTO, sub:'abcd'},
-  standard:  {name:'OSM 표준',                     url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr:OSM_ATTR, sub:'abc'},
-  hot:       {name:'OSM 인도주의 (HOT)',            url:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attr:OSM_ATTR+' · Tiles HOT', sub:'abc'},
-  topo:      {name:'지형 (OpenTopoMap)',            url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', attr:OSM_ATTR+' · &copy; OpenTopoMap (CC-BY-SA)', sub:'abc', maxZoom:17}
+  simple:   {name:'심플 라이트 (OSM 회색조)',  url:OSM, attr:OSM_ATTR, sub:'', filter:'grayscale(1) contrast(.82) brightness(1.1)'},
+  dark:     {name:'심플 다크 (OSM 반전)',      url:OSM, attr:OSM_ATTR, sub:'', filter:'grayscale(1) invert(1) contrast(.85) brightness(.95)'},
+  standard: {name:'OSM 표준',                 url:OSM, attr:OSM_ATTR, sub:''},
+  osmfr:    {name:'OSM 프랑스',               url:'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', attr:OSM_ATTR+' · Tiles OSM France', sub:'abc', maxZoom:20},
+  hot:      {name:'OSM 인도주의 (HOT)',        url:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attr:OSM_ATTR+' · Tiles HOT', sub:'abc'},
+  cyclosm:  {name:'CyclOSM (자전거)',          url:'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', attr:OSM_ATTR+' · CyclOSM', sub:'abc', maxZoom:20},
+  topo:     {name:'지형 (OpenTopoMap)',        url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', attr:OSM_ATTR+' · &copy; OpenTopoMap (CC-BY-SA)', sub:'abc', maxZoom:17}
 };
 
 const map = L.map('map', {zoomControl:true}).setView([37.654, 127.068], 13);
@@ -123,12 +125,15 @@ for (const [k, s] of Object.entries(STYLES)) sel.add(new Option(s.name, k));
 function setStyle(k){
   const s = STYLES[k];
   if (base) map.removeLayer(base);
-  base = L.tileLayer(s.url, {attribution:s.attr, subdomains:s.sub, maxZoom:s.maxZoom || 19}).addTo(map);
+  const opt = {attribution:s.attr, maxZoom:s.maxZoom || 19};
+  if (s.sub) opt.subdomains = s.sub;
+  base = L.tileLayer(s.url, opt).addTo(map);
+  base.getContainer().style.filter = s.filter || 'none';
   try { localStorage.setItem('nowon-style', k); } catch(e) {}
 }
-let saved = 'positron';
-try { saved = localStorage.getItem('nowon-style') || 'positron'; } catch(e) {}
-sel.value = STYLES[saved] ? saved : 'positron';
+let saved = 'simple';
+try { saved = localStorage.getItem('nowon-style') || 'simple'; } catch(e) {}
+sel.value = STYLES[saved] ? saved : 'simple';
 setStyle(sel.value);
 sel.addEventListener('change', e => setStyle(e.target.value));
 
